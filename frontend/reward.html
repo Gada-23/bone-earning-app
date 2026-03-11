@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reward Processing</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .success-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: bounce 1s ease;
+        }
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #666;
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        .bones {
+            font-size: 24px;
+            color: #8B4513;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .close-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <h1>Reward Earned!</h1>
+        <p>You've successfully watched an ad and earned:</p>
+        <div class="bones" id="bonesAmount">1 Bone</div>
+        <p id="userInfo"></p>
+        <p>Your balance has been updated in the app.</p>
+        <button class="close-btn" onclick="closeWindow()">Close</button>
+    </div>
+
+    <script>
+        // Get parameters from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user') || 'unknown';
+        const bones = urlParams.get('bones') || '1';
+        
+        // Display info
+        document.getElementById('bonesAmount').textContent = bones + ' Bone' + (bones > 1 ? 's' : '');
+        document.getElementById('userInfo').textContent = `User ID: ${userId}`;
+        
+        // Save to localStorage (temporary - will be replaced by backend)
+        const storageKey = `boneApp_${userId}`;
+        let currentBalance = localStorage.getItem(storageKey);
+        currentBalance = currentBalance ? parseInt(currentBalance) : 0;
+        const newBalance = currentBalance + parseInt(bones);
+        localStorage.setItem(storageKey, newBalance);
+        
+        // Also save to generic key for demo
+        localStorage.setItem('boneBalance_dev', newBalance);
+        
+        // Log the reward
+        console.log(`Reward processed: User ${userId} earned ${bones} bone(s). New balance: ${newBalance}`);
+        
+        // Send data back to the main app if possible
+        if (window.opener) {
+            window.opener.postMessage({
+                type: 'REWARD_EARNED',
+                userId: userId,
+                bones: bones
+            }, '*');
+        }
+        
+        function closeWindow() {
+            // Try to close the window
+            window.close();
+            
+            // If can't close (browser restrictions), redirect to main app
+            setTimeout(() => {
+                window.location.href = 'https://bone-earning-app.vercel.app';
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

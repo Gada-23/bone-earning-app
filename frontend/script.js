@@ -1,53 +1,79 @@
-// script.js - Complete Bone Earning App Logic
+// script.js - Complete Bone Earning App with AdsGram Integration
 
 class BoneEarningApp {
     constructor() {
         // Initialize properties
         this.tg = null;
         this.userId = null;
+        this.userData = null;
         this.isTelegramEnvironment = false;
+        
+        // User data
         this.balance = 0;
         this.totalEarned = 0;
         this.referralCount = 0;
         this.dailyStreak = 0;
+        this.adsWatched = 0;
         this.lastClaimDate = null;
         
+        // AdsGram
+        this.adManager = null;
+        this.blockId = '8662582443'; // 🔴 REPLACE WITH YOUR ACTUAL BLOCK ID
+        
         // DOM Elements
+        this.initDOMElements();
+        
+        // Initialize app
+        this.init();
+    }
+    
+    initDOMElements() {
+        // Main UI elements
         this.balanceAmount = document.getElementById('balanceAmount');
         this.progressBar = document.getElementById('progressBar');
         this.progressText = document.getElementById('progressText');
+        this.toast = document.getElementById('toast');
+        this.loadingOverlay = document.getElementById('loadingOverlay');
+        
+        // Stats elements
         this.totalEarnedEl = document.getElementById('totalEarned');
         this.referralCountEl = document.getElementById('referralCount');
         this.dailyStreakEl = document.getElementById('dailyStreak');
-        this.referralLink = document.getElementById('referralLink');
-        this.toast = document.getElementById('toast');
+        this.adsWatchedEl = document.getElementById('adsWatched');
+        this.referralCount2El = document.getElementById('referralCount2');
+        this.referralEarnedEl = document.getElementById('referralEarned');
+        this.yourRankEl = document.getElementById('yourRank');
         
         // Buttons
         this.watchAdBtn = document.getElementById('watchAdBtn');
         this.withdrawBtn = document.getElementById('withdrawBtn');
         this.refreshBtn = document.getElementById('refreshBtn');
+        this.statsBtn = document.getElementById('statsBtn');
+        this.referralBtn = document.getElementById('referralBtn');
         this.copyLinkBtn = document.getElementById('copyLinkBtn');
+        this.viewLeaderboardBtn = document.getElementById('viewLeaderboardBtn');
+        
+        // Sections
+        this.statsSection = document.getElementById('statsSection');
+        this.referralSection = document.getElementById('referralSection');
+        this.referralLink = document.getElementById('referralLink');
         
         // Navigation
         this.navHome = document.getElementById('navHome');
         this.navEarn = document.getElementById('navEarn');
         this.navStats = document.getElementById('navStats');
         this.navProfile = document.getElementById('navProfile');
-        
-        // Check if essential elements exist
-        if (!this.balanceAmount) {
-            console.error('Critical elements missing!');
-            return;
-        }
-        
-        // Initialize the app
-        this.init();
     }
     
     async init() {
         try {
+            console.log('🦴 Bone Earning App initializing...');
+            
             // Check Telegram environment
             this.checkTelegramEnvironment();
+            
+            // Initialize AdsGram
+            this.initAdsGram();
             
             // Load user data
             await this.loadUserData();
@@ -61,14 +87,19 @@ class BoneEarningApp {
             // Check daily streak
             this.checkDailyStreak();
             
-            // Set up referral link
+            // Setup referral link
             this.setupReferralLink();
             
+            // Hide loading
+            this.hideLoading();
+            
             console.log('✅ App initialized successfully');
+            this.showToast('Welcome to BoneEarn! 🦴', 'success');
             
         } catch (error) {
             console.error('❌ Initialization error:', error);
             this.showToast('Failed to initialize app', 'error');
+            this.hideLoading();
         }
     }
     
@@ -84,35 +115,72 @@ class BoneEarningApp {
                 
                 // Get user info
                 if (this.tg.initDataUnsafe && this.tg.initDataUnsafe.user) {
-                    this.userId = this.tg.initDataUnsafe.user.id;
-                    console.log('Telegram user:', this.userId);
+                    this.userData = this.tg.initDataUnsafe.user;
+                    this.userId = this.userData.id.toString();
+                    console.log('Telegram user:', this.userData);
                     
-                    // Set main button if needed
-                    this.tg.MainButton.setText('Watch Ad');
-                    this.tg.MainButton.hide();
+                    // Set background color
+                    this.tg.setHeaderColor('#8B4513');
+                } else {
+                    this.userId = 'test_user_' + Math.floor(Math.random() * 1000);
+                    console.log('Test user:', this.userId);
                 }
-                
-                // Handle back button
-                this.tg.BackButton.onClick(() => {
-                    this.showToast('Back button pressed', 'info');
-                });
             } else {
-                console.log('Running in browser mode');
-                // Set test user ID for development
-                this.userId = 'test_user_123';
+                this.userId = 'test_user_' + Math.floor(Math.random() * 1000);
+                console.log('Running in browser mode - Test user:', this.userId);
             }
         } catch (error) {
             console.log('Telegram check error:', error);
-            // Fallback to browser mode
-            this.userId = 'test_user_123';
+            this.userId = 'test_user_' + Math.floor(Math.random() * 1000);
+        }
+    }
+    
+    initAdsGram() {
+        try {
+            // Create ad container
+            const adContainer = document.getElementById('ad-container');
+            
+            // Create adsgram element
+            const adElement = document.createElement('adsgram-task');
+            adElement.setAttribute('data-block-id', this.blockId);
+            adElement.setAttribute('data-debug', 'true'); // Set to false when live
+            adElement.setAttribute('data-debug-console', 'true');
+            
+            // Add to container
+            adContainer.appendChild(adElement);
+            
+            // Set up event listeners
+            adElement.addEventListener('reward', (event) => {
+                console.log('✅ Ad completed - reward earned!', event.detail);
+                this.handleAdReward(event.detail);
+            });
+            
+            adElement.addEventListener('onError', (event) => {
+                console.error('❌ Ad error:', event.detail);
+                this.hideLoading();
+                this.showToast('Ad failed to load', 'error');
+            });
+            
+            adElement.addEventListener('onBannerNotFound', () => {
+                console.log('⚠️ No ads available');
+                this.hideLoading();
+                this.showToast('No ads available, try again later', 'warning');
+            });
+            
+            adElement.addEventListener('onStart', () => {
+                console.log('🎬 Ad started');
+            });
+            
+            this.adManager = adElement;
+            console.log('📺 AdsGram initialized with block:', this.blockId);
+            
+        } catch (error) {
+            console.error('AdsGram init error:', error);
         }
     }
     
     async loadUserData() {
-        // In production, this would fetch from your backend
-        // For now, use localStorage
-        
-        const storageKey = this.userId ? `boneApp_${this.userId}` : 'boneApp_dev';
+        const storageKey = `boneApp_${this.userId}`;
         const savedData = localStorage.getItem(storageKey);
         
         if (savedData) {
@@ -122,7 +190,9 @@ class BoneEarningApp {
                 this.totalEarned = data.totalEarned || 0;
                 this.referralCount = data.referralCount || 0;
                 this.dailyStreak = data.dailyStreak || 0;
+                this.adsWatched = data.adsWatched || 0;
                 this.lastClaimDate = data.lastClaimDate || null;
+                console.log('Loaded user data:', data);
             } catch (e) {
                 console.error('Failed to load saved data');
             }
@@ -130,144 +200,151 @@ class BoneEarningApp {
     }
     
     saveUserData() {
-        const storageKey = this.userId ? `boneApp_${this.userId}` : 'boneApp_dev';
+        const storageKey = `boneApp_${this.userId}`;
         const data = {
             balance: this.balance,
             totalEarned: this.totalEarned,
             referralCount: this.referralCount,
             dailyStreak: this.dailyStreak,
+            adsWatched: this.adsWatched,
             lastClaimDate: this.lastClaimDate,
             lastUpdated: new Date().toISOString()
         };
         
         localStorage.setItem(storageKey, JSON.stringify(data));
+        console.log('Saved user data:', data);
     }
     
     setupEventListeners() {
-        // Watch Ad Button
+        // Main buttons
         this.watchAdBtn.addEventListener('click', () => this.handleWatchAd());
-        
-        // Withdraw Button
         this.withdrawBtn.addEventListener('click', () => this.handleWithdraw());
-        
-        // Refresh Button
         this.refreshBtn.addEventListener('click', () => this.handleRefresh());
         
-        // Copy Link Button
-        if (this.copyLinkBtn) {
-            this.copyLinkBtn.addEventListener('click', () => this.handleCopyLink());
+        // Section buttons
+        this.statsBtn.addEventListener('click', () => this.toggleSection('stats'));
+        this.referralBtn.addEventListener('click', () => this.toggleSection('referral'));
+        this.copyLinkBtn.addEventListener('click', () => this.handleCopyLink());
+        
+        // Leaderboard
+        if (this.viewLeaderboardBtn) {
+            this.viewLeaderboardBtn.addEventListener('click', () => this.showLeaderboard());
         }
         
         // Navigation
-        if (this.navHome) {
-            this.navHome.addEventListener('click', () => this.switchTab('home'));
-            this.navEarn.addEventListener('click', () => this.switchTab('earn'));
-            this.navStats.addEventListener('click', () => this.switchTab('stats'));
-            this.navProfile.addEventListener('click', () => this.switchTab('profile'));
-        }
+        this.navHome.addEventListener('click', () => this.switchTab('home'));
+        this.navEarn.addEventListener('click', () => this.switchTab('earn'));
+        this.navStats.addEventListener('click', () => this.switchTab('stats'));
+        this.navProfile.addEventListener('click', () => this.switchTab('profile'));
+        
+        // Listen for messages from reward page
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'REWARD_EARNED') {
+                this.loadUserData();
+                this.updateUI();
+                this.showToast(`✅ +${event.data.bones} bone earned!`, 'success');
+            }
+        });
     }
     
     async handleWatchAd() {
         try {
-            // Disable button during ad
+            // Show loading
+            this.showLoading();
+            
+            // Disable button
             this.watchAdBtn.disabled = true;
-            this.watchAdBtn.innerHTML = '<span class="loading"></span> Loading Ad...';
             
-            // Simulate ad loading
-            await this.delay(1000);
-            
-            // Show ad (simulated)
-            const adWatched = await this.showAd();
-            
-            if (adWatched) {
-                // Add bones
-                this.balance += 1;
-                this.totalEarned += 1;
-                
-                // Check daily streak
-                this.updateDailyStreak();
-                
-                // Save data
-                this.saveUserData();
-                
-                // Update UI
-                this.updateUI();
-                
-                // Show success message
-                this.showToast('✅ You earned 1 bone!', 'success');
-                
-                // Trigger haptic feedback if in Telegram
-                if (this.tg && this.tg.HapticFeedback) {
-                    this.tg.HapticFeedback.notificationOccurred('success');
-                }
+            // Show ad
+            if (this.adManager) {
+                await this.adManager.show();
+            } else {
+                // Fallback simulation
+                setTimeout(() => {
+                    this.handleAdReward({ amount: 1 });
+                }, 2000);
             }
             
         } catch (error) {
-            console.error('Ad watch error:', error);
-            this.showToast('Failed to load ad', 'error');
-        } finally {
-            // Re-enable button
+            console.error('Ad error:', error);
+            this.hideLoading();
             this.watchAdBtn.disabled = false;
-            this.watchAdBtn.innerHTML = '<span class="btn-icon">📺</span><span class="btn-text">Watch Ad & Earn 1 Bone</span>';
+            this.showToast('Failed to show ad', 'error');
         }
     }
     
-    async showAd() {
-        // Simulate ad display
-        return new Promise((resolve) => {
-            this.showToast('📺 Watching ad...', 'info');
+    handleAdReward(detail) {
+        try {
+            // Add bones
+            const rewardAmount = 1; // 1 bone per ad
+            this.balance += rewardAmount;
+            this.totalEarned += rewardAmount;
+            this.adsWatched += 1;
             
-            setTimeout(() => {
-                // 90% chance of successful ad completion
-                const success = Math.random() < 0.9;
-                
-                if (success) {
-                    this.showToast('✅ Ad completed!', 'success');
-                } else {
-                    this.showToast('❌ Ad failed, try again', 'error');
-                }
-                
-                resolve(success);
-            }, 2000);
-        });
+            // Update daily streak
+            this.updateDailyStreak();
+            
+            // Save data
+            this.saveUserData();
+            
+            // Update UI
+            this.updateUI();
+            
+            // Hide loading
+            this.hideLoading();
+            
+            // Enable button
+            this.watchAdBtn.disabled = false;
+            
+            // Show success
+            this.showToast(`✅ You earned ${rewardAmount} bone!`, 'success');
+            
+            // Haptic feedback in Telegram
+            if (this.tg && this.tg.HapticFeedback) {
+                this.tg.HapticFeedback.notificationOccurred('success');
+            }
+            
+            // Call reward URL (in production, this would be handled by backend)
+            this.callRewardUrl(this.userId, rewardAmount);
+            
+        } catch (error) {
+            console.error('Reward handling error:', error);
+            this.hideLoading();
+            this.watchAdBtn.disabled = false;
+        }
+    }
+    
+    async callRewardUrl(userId, amount) {
+        // In production, this would be called by AdsGram
+        // For now, we simulate it
+        try {
+            const rewardUrl = `https://bone-earning-app.vercel.app/reward.html?user=${userId}&bones=${amount}`;
+            console.log('Calling reward URL:', rewardUrl);
+            
+            // Open in background (optional)
+            // window.open(rewardUrl, '_blank');
+            
+        } catch (error) {
+            console.error('Reward URL error:', error);
+        }
     }
     
     handleWithdraw() {
         const minimumWithdrawal = 1000;
         
         if (this.balance >= minimumWithdrawal) {
-            // Calculate withdrawal amounts
-            const withdrawalAmount = Math.floor(this.balance / 1000) * 1000;
-            const remainingBones = this.balance - withdrawalAmount;
+            const withdrawAmount = Math.floor(this.balance / 1000) * 1000;
+            const remaining = this.balance - withdrawAmount;
             
-            // Show withdrawal dialog
-            const message = 
-                `💰 Withdrawal Request\n\n` +
-                `Available: ${this.balance} bones\n` +
-                `Withdraw: ${withdrawalAmount} bones\n` +
-                `Remaining: ${remainingBones} bones\n\n` +
-                `Confirm withdrawal?`;
-            
-            if (confirm(message)) {
-                // Process withdrawal
-                this.balance = remainingBones;
+            if (confirm(`Withdraw ${withdrawAmount} bones?\nRemaining: ${remaining} bones`)) {
+                this.balance = remaining;
                 this.saveUserData();
                 this.updateUI();
-                
-                this.showToast(`✅ Withdrawal of ${withdrawalAmount} bones requested!`, 'success');
-                
-                // In production, this would call your backend
-                console.log('Withdrawal requested:', withdrawalAmount);
+                this.showToast(`✅ Withdrawal requested: ${withdrawAmount} bones`, 'success');
             }
         } else {
             const needed = minimumWithdrawal - this.balance;
             this.showToast(`❌ Need ${needed} more bones to withdraw`, 'error');
-            
-            // Shake animation for insufficient balance
-            this.balanceAmount.parentElement.classList.add('shake');
-            setTimeout(() => {
-                this.balanceAmount.parentElement.classList.remove('shake');
-            }, 500);
         }
     }
     
@@ -277,42 +354,82 @@ class BoneEarningApp {
         this.showToast('🔄 Balance refreshed', 'success');
     }
     
+    toggleSection(section) {
+        // Hide both sections first
+        this.statsSection.style.display = 'none';
+        this.referralSection.style.display = 'none';
+        
+        // Show selected section
+        if (section === 'stats') {
+            this.statsSection.style.display = 'block';
+            this.updateStats();
+        } else if (section === 'referral') {
+            this.referralSection.style.display = 'block';
+        }
+        
+        // Scroll to section
+        setTimeout(() => {
+            document.querySelector(`.${section}-section`).scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }, 100);
+    }
+    
     async handleCopyLink() {
-        if (this.referralLink) {
-            try {
-                await navigator.clipboard.writeText(this.referralLink.value);
-                this.showToast('📋 Referral link copied!', 'success');
-                
-                // Simulate referral (for testing)
-                if (this.copyLinkBtn.textContent === 'Copy') {
-                    this.copyLinkBtn.textContent = 'Copied!';
-                    setTimeout(() => {
-                        this.copyLinkBtn.textContent = 'Copy';
-                    }, 2000);
-                }
-            } catch (err) {
-                this.showToast('Failed to copy', 'error');
-            }
+        try {
+            await navigator.clipboard.writeText(this.referralLink.value);
+            this.showToast('📋 Referral link copied!', 'success');
+            
+            this.copyLinkBtn.textContent = 'Copied!';
+            setTimeout(() => {
+                this.copyLinkBtn.textContent = 'Copy';
+            }, 2000);
+            
+        } catch (err) {
+            this.showToast('Failed to copy', 'error');
         }
     }
     
+    showLeaderboard() {
+        // Simulate leaderboard
+        const leaderboard = [
+            { name: 'You', score: this.totalEarned },
+            { name: 'Alex', score: 2450 },
+            { name: 'Sarah', score: 2100 },
+            { name: 'Mike', score: 1800 }
+        ].sort((a, b) => b.score - a.score);
+        
+        let message = '🏆 Top Earners\n\n';
+        leaderboard.forEach((user, index) => {
+            message += `${index + 1}. ${user.name}: ${user.score} 🦴\n`;
+        });
+        
+        this.showToast(message, 'info');
+    }
+    
     switchTab(tab) {
-        // Update navigation active state
-        const navItems = [this.navHome, this.navEarn, this.navStats, this.navProfile];
-        navItems.forEach(item => item.classList.remove('active'));
+        // Update navigation
+        [this.navHome, this.navEarn, this.navStats, this.navProfile].forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Hide sections
+        this.statsSection.style.display = 'none';
+        this.referralSection.style.display = 'none';
         
         switch(tab) {
             case 'home':
                 this.navHome.classList.add('active');
-                this.showToast('🏠 Home', 'info');
                 break;
             case 'earn':
                 this.navEarn.classList.add('active');
-                this.showToast('💰 Earn bones by watching ads!', 'info');
+                this.showToast('💰 Watch ads to earn bones!', 'info');
                 break;
             case 'stats':
                 this.navStats.classList.add('active');
-                this.showStats();
+                this.statsSection.style.display = 'block';
+                this.updateStats();
                 break;
             case 'profile':
                 this.navProfile.classList.add('active');
@@ -321,104 +438,63 @@ class BoneEarningApp {
         }
     }
     
-    showStats() {
-        const stats = 
-            `📊 Your Statistics\n\n` +
-            `Total Earned: ${this.totalEarned} bones\n` +
-            `Current Balance: ${this.balance} bones\n` +
-            `Referrals: ${this.referralCount}\n` +
-            `Daily Streak: ${this.dailyStreak} days\n` +
-            `Withdrawals: ${Math.floor(this.totalEarned / 1000)}`;
-        
-        this.showToast(stats, 'info');
-    }
-    
-    showProfile() {
-        const userInfo = this.tg?.initDataUnsafe?.user;
-        
-        if (userInfo && this.isTelegramEnvironment) {
-            const profile = 
-                `👤 User Profile\n\n` +
-                `Name: ${userInfo.first_name || ''} ${userInfo.last_name || ''}\n` +
-                `Username: @${userInfo.username || 'N/A'}\n` +
-                `User ID: ${userInfo.id}\n` +
-                `Language: ${userInfo.language_code || 'en'}`;
-            
-            this.showToast(profile, 'info');
-        } else {
-            this.showToast('👤 Guest User (Development Mode)', 'info');
-        }
-    }
-    
     updateUI() {
         // Update balance
         this.balanceAmount.textContent = this.balance;
         
         // Update progress bar
-        const progress = (this.balance / 1000) * 100;
-        this.progressBar.style.width = `${Math.min(progress, 100)}%`;
+        const progress = Math.min((this.balance / 1000) * 100, 100);
+        this.progressBar.style.width = `${progress}%`;
         
         // Update progress text
         const remaining = Math.max(0, 1000 - this.balance);
-        this.progressText.textContent = `${remaining} more bones to withdraw`;
+        this.progressText.textContent = `${remaining} more to withdraw`;
         
         // Update stats
-        if (this.totalEarnedEl) {
-            this.totalEarnedEl.textContent = `${this.totalEarned} 🦴`;
-        }
-        
-        if (this.referralCountEl) {
-            this.referralCountEl.textContent = this.referralCount;
-        }
-        
-        if (this.dailyStreakEl) {
-            this.dailyStreakEl.textContent = `${this.dailyStreak} day${this.dailyStreak !== 1 ? 's' : ''}`;
-        }
-        
-        // Update main button if in Telegram
-        if (this.tg && this.isTelegramEnvironment) {
-            if (this.balance >= 1000) {
-                this.tg.MainButton.setText('💰 Withdraw Now');
-                this.tg.MainButton.show();
-                this.tg.MainButton.onClick(() => this.handleWithdraw());
-            } else {
-                this.tg.MainButton.hide();
-            }
-        }
+        if (this.totalEarnedEl) this.totalEarnedEl.textContent = this.totalEarned;
+        if (this.referralCountEl) this.referralCountEl.textContent = this.referralCount;
+        if (this.referralCount2El) this.referralCount2El.textContent = this.referralCount;
+        if (this.dailyStreakEl) this.dailyStreakEl.textContent = this.dailyStreak;
+        if (this.adsWatchedEl) this.adsWatchedEl.textContent = this.adsWatched;
+        if (this.referralEarnedEl) this.referralEarnedEl.textContent = this.referralCount * 10;
+        if (this.yourRankEl) this.yourRankEl.textContent = `${this.totalEarned} 🦴`;
+    }
+    
+    updateStats() {
+        if (this.totalEarnedEl) this.totalEarnedEl.textContent = this.totalEarned;
+        if (this.referralCountEl) this.referralCountEl.textContent = this.referralCount;
+        if (this.dailyStreakEl) this.dailyStreakEl.textContent = this.dailyStreak;
+        if (this.adsWatchedEl) this.adsWatchedEl.textContent = this.adsWatched;
     }
     
     updateDailyStreak() {
         const today = new Date().toDateString();
         
         if (!this.lastClaimDate) {
-            // First claim
             this.dailyStreak = 1;
         } else if (this.lastClaimDate === today) {
-            // Already claimed today
             return;
         } else {
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             
             if (this.lastClaimDate === yesterday.toDateString()) {
-                // Consecutive day
                 this.dailyStreak++;
+                
+                // Bonus for streak milestones
+                if (this.dailyStreak === 7) {
+                    this.balance += 10;
+                    this.showToast('🎉 7-day streak! +10 bonus bones!', 'success');
+                } else if (this.dailyStreak === 30) {
+                    this.balance += 50;
+                    this.showToast('🔥 30-day streak! +50 bonus bones!', 'success');
+                }
             } else {
-                // Streak broken
                 this.dailyStreak = 1;
             }
         }
         
         this.lastClaimDate = today;
-        
-        // Bonus for streak milestones
-        if (this.dailyStreak === 7) {
-            this.balance += 10;
-            this.showToast('🎉 7-day streak! +10 bonus bones!', 'success');
-        } else if (this.dailyStreak === 30) {
-            this.balance += 50;
-            this.showToast('🔥 30-day streak! +50 bonus bones!', 'success');
-        }
     }
     
     checkDailyStreak() {
@@ -430,9 +506,7 @@ class BoneEarningApp {
             yesterday.setDate(yesterday.getDate() - 1);
             
             if (lastDate.toDateString() !== yesterday.toDateString()) {
-                // Missed a day
                 this.dailyStreak = 0;
-                this.showToast('⚠️ Streak reset - watch an ad to start again!', 'warning');
                 this.saveUserData();
             }
         }
@@ -440,56 +514,49 @@ class BoneEarningApp {
     
     setupReferralLink() {
         if (this.referralLink) {
-            const baseUrl = 'https://t.me/';
-            const botUsername = this.tg?.initDataUnsafe?.user?.username || 'YourBot';
+            const botUsername = this.userData?.username || 'YourBot';
             const refCode = this.userId || 'ref123';
-            
-            this.referralLink.value = `${baseUrl}${botUsername}?start=${refCode}`;
+            this.referralLink.value = `https://t.me/${botUsername}?start=${refCode}`;
         }
     }
     
+    showProfile() {
+        if (this.userData && this.isTelegramEnvironment) {
+            const profile = [
+                `👤 ${this.userData.first_name || ''} ${this.userData.last_name || ''}`,
+                `@${this.userData.username || 'N/A'}`,
+                `ID: ${this.userData.id}`,
+                `📱 Joined: ${new Date().toLocaleDateString()}`
+            ].join('\n');
+            this.showToast(profile, 'info');
+        } else {
+            this.showToast('👤 Guest Mode\nEarn bones by watching ads!', 'info');
+        }
+    }
+    
+    showLoading() {
+        this.loadingOverlay.classList.add('show');
+    }
+    
+    hideLoading() {
+        this.loadingOverlay.classList.remove('show');
+    }
+    
     showToast(message, type = 'info') {
-        if (!this.toast) return;
-        
         this.toast.textContent = message;
         this.toast.className = 'toast show';
         
-        // Add type class
-        if (type === 'error') {
-            this.toast.classList.add('error');
-        } else if (type === 'success') {
-            this.toast.classList.add('success');
-        }
+        if (type === 'error') this.toast.classList.add('error');
+        if (type === 'success') this.toast.classList.add('success');
+        if (type === 'warning') this.toast.classList.add('warning');
         
-        // Hide after 3 seconds
         setTimeout(() => {
             this.toast.classList.remove('show');
         }, 3000);
     }
-    
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
 }
 
-// Initialize the app when DOM is ready
+// Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    // Add shake animation CSS
-    const style = document.createElement('style');
-    style.textContent = `
-        .shake {
-            animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-        }
-        
-        @keyframes shake {
-            10%, 90% { transform: translateX(-1px); }
-            20%, 80% { transform: translateX(2px); }
-            30%, 50%, 70% { transform: translateX(-4px); }
-            40%, 60% { transform: translateX(4px); }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    // Start the app
     window.app = new BoneEarningApp();
 });

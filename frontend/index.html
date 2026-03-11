@@ -2,110 +2,166 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>BoneEarn 🦴 | Watch Ads, Earn Bones</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- AdsGram SDK -->
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 </head>
 <body>
     <div class="app-container">
-        <!-- Header with decorative bone pattern -->
+        <!-- Header with Wave Effect -->
         <div class="header">
-            <div class="bone-pattern">
-                <span>🦴</span>
-                <span>🦴</span>
-                <span>🦴</span>
+            <div class="header-content">
+                <div class="bone-pattern">
+                    <span>🦴</span>
+                    <span>🦴</span>
+                    <span>🦴</span>
+                </div>
+                <h1 class="logo">Bone<span>Earn</span></h1>
+                <p class="tagline">Watch. Earn. Withdraw.</p>
             </div>
-            <h1 class="logo">Bone<span>Earn</span></h1>
-            <p class="tagline">Watch. Earn. Withdraw.</p>
+            <div class="wave">
+                <svg viewBox="0 0 500 150" preserveAspectRatio="none">
+                    <path d="M0.00,49.98 C150.00,150.00 349.99,-50.00 500.00,49.98 L500.00,150.00 L0.00,150.00 Z" style="stroke: none; fill: white;"></path>
+                </svg>
+            </div>
         </div>
 
-        <!-- Main Card - Balance Section -->
-        <div class="balance-card">
-            <div class="balance-label">Your Bones</div>
-            <div class="balance-container">
-                <span class="balance-amount" id="balanceAmount">0</span>
-                <span class="balance-currency">🦴</span>
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Balance Card -->
+            <div class="balance-card">
+                <div class="balance-label">Your Bones</div>
+                <div class="balance-container">
+                    <span class="balance-amount" id="balanceAmount">0</span>
+                    <span class="balance-currency">🦴</span>
+                </div>
+                <div class="balance-progress-container">
+                    <div class="balance-progress">
+                        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0/1000 bones to withdraw</div>
+                </div>
             </div>
-            <div class="balance-progress">
-                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
-            </div>
-            <div class="progress-text" id="progressText">0/1000 bones to withdraw</div>
-        </div>
 
-        <!-- Action Buttons -->
-        <div class="actions">
-            <button class="btn btn-primary" id="watchAdBtn">
+            <!-- Watch Ad Button (Big & Prominent) -->
+            <button class="btn btn-primary pulse" id="watchAdBtn">
                 <span class="btn-icon">📺</span>
                 <span class="btn-text">Watch Ad & Earn 1 Bone</span>
             </button>
 
-            <div class="button-row">
-                <button class="btn btn-secondary" id="withdrawBtn">
-                    <span class="btn-icon">💸</span>
-                    <span class="btn-text">Withdraw</span>
+            <!-- Action Buttons Grid -->
+            <div class="action-grid">
+                <button class="action-card" id="withdrawBtn">
+                    <div class="action-icon">💸</div>
+                    <div class="action-label">Withdraw</div>
                 </button>
                 
-                <button class="btn btn-secondary" id="refreshBtn">
-                    <span class="btn-icon">🔄</span>
-                    <span class="btn-text">Refresh</span>
+                <button class="action-card" id="refreshBtn">
+                    <div class="action-icon">🔄</div>
+                    <div class="action-label">Refresh</div>
+                </button>
+                
+                <button class="action-card" id="statsBtn">
+                    <div class="action-icon">📊</div>
+                    <div class="action-label">Stats</div>
+                </button>
+                
+                <button class="action-card" id="referralBtn">
+                    <div class="action-icon">🎁</div>
+                    <div class="action-label">Refer</div>
+                </button>
+            </div>
+
+            <!-- Stats Section (Hidden by default, shown when Stats clicked) -->
+            <div class="stats-section" id="statsSection" style="display: none;">
+                <h3 class="section-title">📊 Your Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalEarned">0</div>
+                        <div class="stat-label">Total Earned</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="referralCount">0</div>
+                        <div class="stat-label">Referrals</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="dailyStreak">0</div>
+                        <div class="stat-label">Day Streak</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="adsWatched">0</div>
+                        <div class="stat-label">Ads Watched</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Referral Section (Hidden by default, shown when Refer clicked) -->
+            <div class="referral-section" id="referralSection" style="display: none;">
+                <h3 class="section-title">🎁 Invite Friends</h3>
+                <p class="referral-text">Get <strong>10 bones</strong> for each friend who joins using your link!</p>
+                <div class="referral-link-container">
+                    <input type="text" id="referralLink" readonly value="https://t.me/YourBot?start=">
+                    <button class="copy-btn" id="copyLinkBtn">Copy</button>
+                </div>
+                <div class="referral-stats">
+                    <span>👥 <span id="referralCount2">0</span> friends joined</span>
+                    <span>🦴 <span id="referralEarned">0</span> bones earned</span>
+                </div>
+            </div>
+
+            <!-- Leaderboard Preview -->
+            <div class="leaderboard-preview">
+                <div class="leaderboard-header">
+                    <span>🏆 Top Earners</span>
+                    <button class="view-all" id="viewLeaderboardBtn">View All</button>
+                </div>
+                <div class="leaderboard-list" id="leaderboardList">
+                    <div class="leaderboard-item">
+                        <span class="rank">1.</span>
+                        <span class="name">You</span>
+                        <span class="score" id="yourRank">0 🦴</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Navigation -->
+            <div class="bottom-nav">
+                <button class="nav-item active" id="navHome">
+                    <span class="nav-icon">🏠</span>
+                    <span class="nav-label">Home</span>
+                </button>
+                <button class="nav-item" id="navEarn">
+                    <span class="nav-icon">💰</span>
+                    <span class="nav-label">Earn</span>
+                </button>
+                <button class="nav-item" id="navStats">
+                    <span class="nav-icon">📈</span>
+                    <span class="nav-label">Stats</span>
+                </button>
+                <button class="nav-item" id="navProfile">
+                    <span class="nav-icon">👤</span>
+                    <span class="nav-label">Profile</span>
                 </button>
             </div>
         </div>
+    </div>
 
-        <!-- Stats Section -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">📊</div>
-                <div class="stat-label">Total Earned</div>
-                <div class="stat-value" id="totalEarned">0 🦴</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">👥</div>
-                <div class="stat-label">Referrals</div>
-                <div class="stat-value" id="referralCount">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">🏆</div>
-                <div class="stat-label">Daily Streak</div>
-                <div class="stat-value" id="dailyStreak">0 days</div>
-            </div>
-        </div>
+    <!-- Ad Container (Hidden) -->
+    <div id="ad-container" style="display: none;"></div>
 
-        <!-- Referral Section -->
-        <div class="referral-card">
-            <h3>🎁 Invite Friends</h3>
-            <p>Get 10 bones for each friend who joins!</p>
-            <div class="referral-link-container">
-                <input type="text" id="referralLink" value="https://t.me/YourBot?start=ref123" readonly>
-                <button class="btn btn-small" id="copyLinkBtn">Copy</button>
-            </div>
-        </div>
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
 
-        <!-- Footer Navigation -->
-        <div class="bottom-nav">
-            <button class="nav-item active" id="navHome">
-                <span class="nav-icon">🏠</span>
-                <span class="nav-label">Home</span>
-            </button>
-            <button class="nav-item" id="navEarn">
-                <span class="nav-icon">💰</span>
-                <span class="nav-label">Earn</span>
-            </button>
-            <button class="nav-item" id="navStats">
-                <span class="nav-icon">📈</span>
-                <span class="nav-label">Stats</span>
-            </button>
-            <button class="nav-item" id="navProfile">
-                <span class="nav-icon">👤</span>
-                <span class="nav-label">Profile</span>
-            </button>
-        </div>
-
-        <!-- Toast Notification -->
-        <div class="toast" id="toast"></div>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading ad...</div>
     </div>
 
     <script src="script.js"></script>
