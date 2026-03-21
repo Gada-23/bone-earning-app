@@ -18,7 +18,10 @@ class BoneEarningApp {
         
         // AdsGram
         this.adManager = null;
-        this.blockId = '8662582443'; // 🔴 REPLACE WITH YOUR ACTUAL BLOCK ID
+        this.blockId = 'task-b712d5b7bff5432fa9e134010fa8e045'; // ✅ Real AdsGram Block ID provided by user
+        this.apiBaseUrl = 'https://your-backend.onrender.com'; // 🔧 Set your deployed backend URL
+        this.adCooldownMs = 5000; // Prevent fast repeated clicks
+        this.lastAdClickTime = 0;
         
         // DOM Elements
         this.initDOMElements();
@@ -84,8 +87,9 @@ class BoneEarningApp {
             // Update UI
             this.updateUI();
             
-            // Check daily streak
+            // Check daily streak and daily bonus
             this.checkDailyStreak();
+            this.processDailyBonus();
             
             // Setup referral link
             this.setupReferralLink();
@@ -137,52 +141,91 @@ class BoneEarningApp {
     
     initAdsGram() {
         try {
-            // Create ad container
             const adContainer = document.getElementById('ad-container');
-            
-            // Create adsgram element
+
+            // Task block requires the block ID created in AdsGram dashboard.
+            // Example format in AdsGram dashboard for Reward URL (from your question):
+            // https://bone-earning-app.vercel.app/reward.html?user=[userId]&bones=1
+            // [userId] resolves to the Telegram user id inserted by AdsGram on callback.
+            const taskRewardUrlTemplate = `https://bone-earning-app.vercel.app/reward.html?user=${encodeURIComponent(this.userId)}&bones=1`;
+
             const adElement = document.createElement('adsgram-task');
             adElement.setAttribute('data-block-id', this.blockId);
             adElement.setAttribute('data-debug', 'true'); // Set to false when live
             adElement.setAttribute('data-debug-console', 'true');
-            
-            // Add to container
+            adElement.setAttribute('data-reward-url', taskRewardUrlTemplate);
+
             adContainer.appendChild(adElement);
-            
-            // Set up event listeners
+
             adElement.addEventListener('reward', (event) => {
                 console.log('✅ Ad completed - reward earned!', event.detail);
                 this.handleAdReward(event.detail);
             });
-            
+
             adElement.addEventListener('onError', (event) => {
                 console.error('❌ Ad error:', event.detail);
                 this.hideLoading();
-                this.showToast('Ad failed to load', 'error');
+                this.showToast('Ad error: ' + (event.detail?.message || 'unknown'), 'error');
             });
-            
+
             adElement.addEventListener('onBannerNotFound', () => {
                 console.log('⚠️ No ads available');
                 this.hideLoading();
                 this.showToast('No ads available, try again later', 'warning');
             });
-            
+
             adElement.addEventListener('onStart', () => {
                 console.log('🎬 Ad started');
             });
-            
+
             this.adManager = adElement;
-            console.log('📺 AdsGram initialized with block:', this.blockId);
-            
+            console.log('📺 AdsGram initialized with block:', this.blockId, 'Reward URL:', taskRewardUrlTemplate);
+
         } catch (error) {
             console.error('AdsGram init error:', error);
+            this.showToast('Unable to initialize AdsGram', 'error');
         }
     }
-    
+
+    async apiRequest(endpoint, options = {}) {
+        try {
+            const res = await fetch(`${this.apiBaseUrl}/api${endpoint}`, {
+                headers: { 'Content-Type': 'application/json' },
+                ...options
+            });
+            if (!res.ok) {
+                const error = await res.json().catch(() => ({}));
+                throw new Error(error.message || 'Request failed');
+            }
+            return res.json();
+        } catch (error) {
+            console.error('API request error:', error);
+            throw error;
+        }
+    }
+
     async loadUserData() {
+        try {
+            const response = await this.apiRequest(`/user/${encodeURIComponent(this.userId)}`);
+            if (response.success && response.user) {
+                const user = response.user;
+                this.balance = user.balance || 0;
+                this.totalEarned = user.totalEarned || 0;
+                this.referralCount = user.referralCount || 0;
+                this.dailyStreak = user.dailyStreak || 0;
+                this.adsWatched = user.adsWatched || 0;
+                this.lastClaimDate = user.lastClaimDate || null;
+                this.referralCode = user.referralCode;
+                console.log('Loaded user data from backend:', user);
+                return;
+            }
+        } catch (error) {
+            console.warn('Backend loadUserData failed, fallback to localStorage');
+        }
+
+        // Fallback to localStorage for first-time or offline use
         const storageKey = `boneApp_${this.userId}`;
         const savedData = localStorage.getItem(storageKey);
-        
         if (savedData) {
             try {
                 const data = JSON.parse(savedData);
@@ -192,27 +235,52 @@ class BoneEarningApp {
                 this.dailyStreak = data.dailyStreak || 0;
                 this.adsWatched = data.adsWatched || 0;
                 this.lastClaimDate = data.lastClaimDate || null;
-                console.log('Loaded user data:', data);
+                console.log('Loaded user data (localStorage fallback):', data);
             } catch (e) {
                 console.error('Failed to load saved data');
             }
         }
+
+        // Ensure user exists on backend
+        try {
+            await this.apiRequest('/user/create', {
+                method: 'POST',
+                body: JSON.stringify({
+                    telegramId: this.userId,
+                    username: this.userData?.username || '',
+                    firstName: this.userData?.first_name || '',
+                    lastName: this.userData?.last_name || ''
+                })
+            });
+        } catch (error) {
+            console.warn('Failed to create user in backend on init', error.message);
+        }
     }
     
-    saveUserData() {
-        const storageKey = `boneApp_${this.userId}`;
+    async saveUserData() {
         const data = {
+            telegramId: this.userId,
             balance: this.balance,
             totalEarned: this.totalEarned,
             referralCount: this.referralCount,
             dailyStreak: this.dailyStreak,
             adsWatched: this.adsWatched,
-            lastClaimDate: this.lastClaimDate,
-            lastUpdated: new Date().toISOString()
+            lastClaimDate: this.lastClaimDate
         };
-        
+
+        // LocalStorage backup
+        const storageKey = `boneApp_${this.userId}`;
         localStorage.setItem(storageKey, JSON.stringify(data));
-        console.log('Saved user data:', data);
+
+        try {
+            await this.apiRequest('/user/update', {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+            console.log('Saved user data to backend:', data);
+        } catch (error) {
+            console.warn('Failed saving to backend, fallback local only:', error.message);
+        }
     }
     
     setupEventListeners() {
@@ -248,104 +316,182 @@ class BoneEarningApp {
     }
     
     async handleWatchAd() {
+        const now = Date.now();
+
+        if (now - this.lastAdClickTime < this.adCooldownMs) {
+            this.showToast('⏳ Please wait a few seconds before watching another ad.', 'warning');
+            return;
+        }
+
+        this.lastAdClickTime = now;
+
         try {
-            // Show loading
             this.showLoading();
-            
-            // Disable button
             this.watchAdBtn.disabled = true;
-            
-            // Show ad
-            if (this.adManager) {
-                await this.adManager.show();
-            } else {
-                // Fallback simulation
+
+            if (!navigator.onLine) {
+                throw new Error('No network connection');
+            }
+
+            if (!this.adManager) {
+                // Fallback simulation for local/testing mode
                 setTimeout(() => {
                     this.handleAdReward({ amount: 1 });
                 }, 2000);
+                return;
             }
-            
+
+            if (typeof this.adManager.show === 'function') {
+                await this.adManager.show();
+            } else {
+                throw new Error('AdsGram SDK method show() unavailable');
+            }
+
         } catch (error) {
             console.error('Ad error:', error);
             this.hideLoading();
             this.watchAdBtn.disabled = false;
-            this.showToast('Failed to show ad', 'error');
+
+            if (error.message.includes('No ads') || error.message.includes('404')) {
+                this.showToast('No ads available right now. Please try later.', 'warning');
+            } else if (error.message.includes('No network')) {
+                this.showToast('Network issue. Check connection and retry.', 'error');
+            } else {
+                this.showToast('Failed to show ad: ' + error.message, 'error');
+            }
         }
     }
     
     handleAdReward(detail) {
         try {
-            // Add bones
-            const rewardAmount = 1; // 1 bone per ad
+            const rewardAmount = Number(detail?.amount || 1);
+            if (Number.isNaN(rewardAmount) || rewardAmount <= 0) {
+                throw new Error('Invalid reward amount');
+            }
+
             this.balance += rewardAmount;
             this.totalEarned += rewardAmount;
             this.adsWatched += 1;
-            
-            // Update daily streak
+
             this.updateDailyStreak();
-            
-            // Save data
             this.saveUserData();
-            
-            // Update UI
             this.updateUI();
-            
-            // Hide loading
             this.hideLoading();
-            
-            // Enable button
             this.watchAdBtn.disabled = false;
-            
-            // Show success
-            this.showToast(`✅ You earned ${rewardAmount} bone!`, 'success');
-            
-            // Haptic feedback in Telegram
+
+            this.showToast(`✅ You earned ${rewardAmount} bone${rewardAmount > 1 ? 's' : ''}!`, 'success');
+
             if (this.tg && this.tg.HapticFeedback) {
                 this.tg.HapticFeedback.notificationOccurred('success');
             }
-            
-            // Call reward URL (in production, this would be handled by backend)
+
+            // send event to backend reward/Add bones endpoint
+            try {
+                await this.apiRequest('/user/add-bones', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        telegramId: this.userId,
+                        amount: rewardAmount,
+                        source: 'ad_watch'
+                    })
+                });
+            } catch (err) {
+                console.warn('Failed to update backend on ad reward:', err.message);
+            }
+
+            // call reward page as optional callback endpoint (AdsGram compatibility)
             this.callRewardUrl(this.userId, rewardAmount);
-            
+
         } catch (error) {
             console.error('Reward handling error:', error);
             this.hideLoading();
             this.watchAdBtn.disabled = false;
+            this.showToast('Error processing reward: ' + error.message, 'error');
         }
     }
     
     async callRewardUrl(userId, amount) {
-        // In production, this would be called by AdsGram
-        // For now, we simulate it
+        const rewardUrl = `https://bone-earning-app.vercel.app/reward.html?user=${encodeURIComponent(userId)}&bones=${encodeURIComponent(amount)}`;
+        console.log('Calling reward URL:', rewardUrl);
         try {
-            const rewardUrl = `https://bone-earning-app.vercel.app/reward.html?user=${userId}&bones=${amount}`;
-            console.log('Calling reward URL:', rewardUrl);
-            
-            // Open in background (optional)
-            // window.open(rewardUrl, '_blank');
-            
+            await fetch(rewardUrl, { method: 'GET', mode: 'no-cors', cache: 'no-cache' });
         } catch (error) {
-            console.error('Reward URL error:', error);
+            console.warn('reward.html redirect failed', error.message);
+        }
+
+        // also trigger backend reward endpoint for AdsGram-style callback
+        try {
+            await this.apiRequest('/reward', {
+                method: 'POST',
+                body: JSON.stringify({ user_id: userId, amount, transaction_id: `js-${Date.now()}` })
+            });
+        } catch (error) {
+            console.warn('Backend /reward callback failed', error.message);
         }
     }
     
     handleWithdraw() {
         const minimumWithdrawal = 1000;
-        
-        if (this.balance >= minimumWithdrawal) {
-            const withdrawAmount = Math.floor(this.balance / 1000) * 1000;
-            const remaining = this.balance - withdrawAmount;
-            
-            if (confirm(`Withdraw ${withdrawAmount} bones?\nRemaining: ${remaining} bones`)) {
-                this.balance = remaining;
-                this.saveUserData();
-                this.updateUI();
-                this.showToast(`✅ Withdrawal requested: ${withdrawAmount} bones`, 'success');
-            }
-        } else {
+
+        if (this.balance < minimumWithdrawal) {
             const needed = minimumWithdrawal - this.balance;
             this.showToast(`❌ Need ${needed} more bones to withdraw`, 'error');
+            return;
         }
+
+        const withdrawAmount = Math.floor(this.balance / 1000) * 1000;
+        const remaining = this.balance - withdrawAmount;
+
+        const request = {
+            id: `wr_${Date.now()}`,
+            amount: withdrawAmount,
+            requestedAt: new Date().toISOString(),
+            status: 'pending'
+        };
+
+        if (confirm(`Withdraw ${withdrawAmount} bones?\nRemaining: ${remaining} bones\n\nAdmin contact: @YourBotName`)) {
+            this.balance = remaining;
+            this.saveUserData();
+
+            // Create withdrawal request via backend
+            try {
+                await this.apiRequest('/user/withdraw', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        telegramId: this.userId,
+                        amount: withdrawAmount
+                    })
+                });
+                this.showToast(`✅ Withdrawal requested: ${withdrawAmount} bones`, 'success');
+            } catch (err) {
+                this.showToast(`⚠️ Network/Withdraw API error, saved locally`, 'warning');
+                this.addWithdrawRequest(request);
+            }
+
+            this.updateUI();
+            this.showToast(`📬 Pending withdrawals: ${this.getWithdrawRequests().length}`, 'info');
+        }
+    }
+
+    getWithdrawRequests() {
+        const key = `withdrawRequests_${this.userId}`;
+        const raw = localStorage.getItem(key);
+        try {
+            return raw ? JSON.parse(raw) : [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    addWithdrawRequest(request) {
+        const key = `withdrawRequests_${this.userId}`;
+        const requests = this.getWithdrawRequests();
+        requests.unshift(request);
+        localStorage.setItem(key, JSON.stringify(requests));
+    }
+
+    getPendingWithdrawals() {
+        return this.getWithdrawRequests().filter(req => req.status === 'pending');
     }
     
     handleRefresh() {
@@ -391,20 +537,34 @@ class BoneEarningApp {
         }
     }
     
-    showLeaderboard() {
-        // Simulate leaderboard
+    async showLeaderboard() {
+        try {
+            const resp = await this.apiRequest('/leaderboard');
+            if (resp.success && Array.isArray(resp.leaderboard)) {
+                let message = '🏆 Top Earners\n\n';
+                resp.leaderboard.forEach((user, index) => {
+                    message += `${index + 1}. ${user.username || user.telegramId}: ${user.balance} 🦴\n`;
+                });
+                this.showToast(message, 'info');
+                return;
+            }
+        } catch (error) {
+            console.warn('Leaderboard fetch failed', error.message);
+        }
+
+        // Fallback
         const leaderboard = [
             { name: 'You', score: this.totalEarned },
             { name: 'Alex', score: 2450 },
             { name: 'Sarah', score: 2100 },
             { name: 'Mike', score: 1800 }
         ].sort((a, b) => b.score - a.score);
-        
+
         let message = '🏆 Top Earners\n\n';
         leaderboard.forEach((user, index) => {
             message += `${index + 1}. ${user.name}: ${user.score} 🦴\n`;
         });
-        
+
         this.showToast(message, 'info');
     }
     
@@ -499,16 +659,43 @@ class BoneEarningApp {
     
     checkDailyStreak() {
         const today = new Date().toDateString();
-        
-        if (this.lastClaimDate && this.lastClaimDate !== today) {
+
+        if (!this.lastClaimDate) {
+            this.dailyStreak = 0;
+            return;
+        }
+
+        if (this.lastClaimDate !== today) {
             const lastDate = new Date(this.lastClaimDate);
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
-            
+
             if (lastDate.toDateString() !== yesterday.toDateString()) {
+                // Missed a day -> reset streak
                 this.dailyStreak = 0;
                 this.saveUserData();
             }
+        }
+    }
+
+    async processDailyBonus() {
+        try {
+            const res = await this.apiRequest('/user/claim-daily', {
+                method: 'POST',
+                body: JSON.stringify({ telegramId: this.userId })
+            });
+            if (res.success) {
+                const user = res.user;
+                this.balance = user.balance;
+                this.totalEarned = user.totalEarned;
+                this.dailyStreak = user.dailyStreak;
+                this.lastClaimDate = user.lastClaimDate;
+                this.saveUserData();
+                this.updateUI();
+                this.showToast(`🎁 Daily bonus claimed! (+${res.bonus} bones)`, 'success');
+            }
+        } catch (error) {
+            console.warn('Daily bonus claim failed; local fallback in place');
         }
     }
     

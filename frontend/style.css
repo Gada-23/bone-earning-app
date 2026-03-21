@@ -397,7 +397,79 @@ body {
     justify-content: space-between;
     font-size: clamp(0.8rem, 3.5vw, 0.9rem);
     color: var(--text-secondary);
-    padding-top: var(--space-sm);
+    padding-top: var(--space-sm);}
+
+/* Floating toast */
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 80px;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.75);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 10px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 900;
+    max-width: 90%;
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+.toast.success { background-color: #4CAF50; }
+.toast.error { background-color: #f44336; }
+.toast.warning { background-color: #ff9800; }
+.toast.info { background-color: #2196F3; }
+
+.loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+.loading-overlay.show {
+    display: flex;
+}
+
+/* Responsive improvements for small phones */
+@media (max-width: 415px) {
+    .app-container { box-shadow: none; }
+    .action-grid { grid-template-columns: 1fr; }
+    .btn-primary { min-height: 56px; font-size: 1.1rem; }
+    .balance-amount { font-size: clamp(2.5rem, 16vw, 4rem); }
+    .balance-currency { font-size: clamp(1.3rem, 7vw, 1.8rem); }
+}
+
+@media (max-width: 375px) {
+    .main-content { padding: 0.75rem; }
+    .header-content { padding-bottom: 1.5rem; }
+}
+
+@media (orientation: landscape) {
+    body { align-items: center; }
+    .app-container { max-width: 760px; width: 100%; }
+    .main-content { padding: 1rem; }
+}
+
+@media (prefers-color-scheme: dark) {
+    :root { --background: #121212; --surface: #1d1d1d; --text-primary: #f4f4f4; --text-secondary: #c1c1c1; --border: #2b2b2b; }
+    body { background: #111; }
+    .app-container { background: #181818; color: #ecf0f1; }
+    .balance-card, .action-card, .stats-section, .referral-section { background: #1e1e1e; border-color: #2c2c2c; }
+    .btn-primary { background: linear-gradient(135deg, #4b8055, #2e5d3c); box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+    .copy-btn { background: #2b2b2b; color: #fff; }
+    .toast { color: #fff; }
+}
     border-top: 1px dashed var(--border);
 }
 

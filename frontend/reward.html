@@ -70,45 +70,67 @@
     </div>
 
     <script>
-        // Get parameters from URL
+        const BACKEND_URL = 'https://your-backend.onrender.com';
+        const ADSGRAM_API_KEY = 'YOUR_ADSGRAM_API_KEY';
+
         const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('user') || 'unknown';
-        const bones = urlParams.get('bones') || '1';
-        
-        // Display info
-        document.getElementById('bonesAmount').textContent = bones + ' Bone' + (bones > 1 ? 's' : '');
-        document.getElementById('userInfo').textContent = `User ID: ${userId}`;
-        
-        // Save to localStorage (temporary - will be replaced by backend)
-        const storageKey = `boneApp_${userId}`;
-        let currentBalance = localStorage.getItem(storageKey);
-        currentBalance = currentBalance ? parseInt(currentBalance) : 0;
-        const newBalance = currentBalance + parseInt(bones);
-        localStorage.setItem(storageKey, newBalance);
-        
-        // Also save to generic key for demo
-        localStorage.setItem('boneBalance_dev', newBalance);
-        
-        // Log the reward
-        console.log(`Reward processed: User ${userId} earned ${bones} bone(s). New balance: ${newBalance}`);
-        
-        // Send data back to the main app if possible
-        if (window.opener) {
-            window.opener.postMessage({
-                type: 'REWARD_EARNED',
-                userId: userId,
-                bones: bones
-            }, '*');
+        const userId = urlParams.get('user');
+        const bonesParam = urlParams.get('bones');
+        const bones = Number(bonesParam);
+
+        if (!userId || !bonesParam || Number.isNaN(bones) || bones <= 0) {
+            document.querySelector('.container').innerHTML = `
+                <div class="error-icon">⚠️</div>
+                <h1>Error</h1>
+                <p>Missing or invalid reward parameters.</p>
+                <p>Received user=${userId} bones=${bonesParam}</p>
+                <button class="close-btn" onclick="closeWindow()">Close</button>
+            `;
+            console.error('Invalid reward parameters', userId, bonesParam);
+        } else {
+            document.getElementById('bonesAmount').textContent = bones + ' Bone' + (bones > 1 ? 's' : '');
+            document.getElementById('userInfo').textContent = `User ID: ${userId}`;
+
+            const storageKey = `boneApp_${userId}`;
+            let savedData = localStorage.getItem(storageKey);
+            let existing = 0;
+
+            try {
+                existing = savedData ? parseInt(savedData, 10) : 0;
+            } catch (err) {
+                existing = 0;
+            }
+
+            const newBalance = existing + bones;
+            localStorage.setItem(storageKey, newBalance);
+            localStorage.setItem('boneBalance_dev', newBalance);
+
+            fetch(`${BACKEND_URL}/api/reward`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-adsgram-api-key': ADSGRAM_API_KEY
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    amount: bones,
+                    transaction_id: urlParams.get('transaction_id') || `web-${Date.now()}`
+                })
+            })
+            .then(res => res.json())
+            .then(data => console.log('Backend reward response', data))
+            .catch(err => console.warn('Backend reward request failed', err));
+
+            if (window.opener) {
+                window.opener.postMessage({ type: 'REWARD_EARNED', userId, bones }, '*');
+            }
+
+            console.log(`Reward processed: User ${userId} earned ${bones} bone(s). New balance: ${newBalance}`);
         }
-        
+
         function closeWindow() {
-            // Try to close the window
-            window.close();
-            
-            // If can't close (browser restrictions), redirect to main app
-            setTimeout(() => {
-                window.location.href = 'https://bone-earning-app.vercel.app';
-            }, 1000);
+            try { window.close(); } catch (e) { /* ignore */ }
+            setTimeout(() => { window.location.href = 'https://bone-earning-app.vercel.app'; }, 400);
         }
     </script>
 </body>
